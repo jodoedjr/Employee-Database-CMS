@@ -1,0 +1,29 @@
+{
+  "name": "employee-database-cms",
+  "version": "1.0.0",
+  "description": "CLI Node application for retriving/editing employee, role, and department information.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jodoedjr/Employee-Database-CMS.git"
+  },
+  "keywords": [
+    "CLI",
+    "Node",
+    "MySQL"
+  ],
+  "author": "John Edwards",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/jodoedjr/Employee-Database-CMS/issues"
+  },
+  "homepage": "https://github.com/jodoedjr/Employee-Database-CMS#readme",
+  "dependencies": {
+    "console.table": "^0.10.0",
+    "inquirer": "^7.3.3",
+    "mysql": "^2.18.1"
+  }
+}
