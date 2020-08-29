@@ -185,8 +185,9 @@ function addEmployee() {
                     let selectedManagerID = null; // default to no manager for new employee
                     if (response.manager != "null") { // if user response for manager was not "null"
                         selectedManagerID = employee.find(item => { // find employee id of employee who's name matches the user input
-                            item.name === response.manager
-                            return item.id;
+                            if (item.name === response.manager) {
+                                return item.id; // returns item.id to selectedManagerID
+                            }
                         });
                     }
                     connection.query(
@@ -241,4 +242,61 @@ function viewEmployees() {
             console.table(res);
             promptUser();
         });
+}
+
+function updateEmployeeRole() {
+    connection.query(
+        `SELECT * FROM role;
+        SELECT * FROM employee;`, //grabs everything from the role and employee tables
+        function (err, res) {
+            let role = res[0];
+            let employee = res[1];
+            inquirer.prompt([
+                {
+                    name: "employee",
+                    type: "list",
+                    message: "Who's role would you like to change?",
+                    choices: function () {
+                        let choiceArray = [];
+                        for (let i = 0 ; i < employee.length; i++){
+                            choiceArray.push(`${employee[i].first_name} ${employee[i].last_name}`);
+                        }
+                        return choiceArray;
+                    }
+                },
+                {
+                    name: "role",
+                    type: "list",
+                    message: "What role would you like to assign?",
+                    choices: function () {
+                        let choiceArray = [];
+                        for (let i = 0; i < role.length; i++){
+                            choiceArray.push(`${role[i].title}`);
+                        }
+                        choiceArray.push("Cancel"); // give user option to cancel
+                        return choiceArray;
+                    }
+                }
+            ]).then(function (response) {
+                if (response.role === "Cancel"){ // cancel process and re-prompt main menu if user decides to cancel
+                    console.log("Returning to Main Menu");
+                    promptUser();
+                } else {
+                    let employeeName = response.employee.split(" ");
+                    let selectedEmployee = employee.find(item => (item.first_name === employeeName[0]) && (item.last_name === employeeName[1]));
+                    let selectedRole = role.find(item => item.title === response.role)// find the role selected by the user (this is a role object, with ID and title)
+                    connection.query(
+                        `UPDATE employee
+                        SET ?
+                        WHERE ?`,
+                        [{role_id: selectedRole.id},{id: selectedEmployee.id}],
+                        function(err, res){
+                            if (err) throw err;
+                            console.log(`${response.employee} assigned role: ${response.role}`);
+                            viewEmployees();
+                    });
+                }
+            })
+        }
+    )
 }
