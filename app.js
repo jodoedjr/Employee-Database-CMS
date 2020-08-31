@@ -1,8 +1,11 @@
+/////////////////////////////////////////////////////////////
+// Requires and Global Vars
+/////////////////////////////////////////////////////////////
 const mysql = require("mysql");
-const inqurier = require("inquirer");
-const cTable = require("console.table");
 const inquirer = require("inquirer");
+const cTable = require("console.table");
 
+//local versions of DB tables
 let department = [];
 let departmentView = [];
 let role = [];
@@ -48,10 +51,7 @@ connection.connect(async function (err) {
     $$ |  $$ | $$$$$$$ | $$ |     $$$$$$$ |$$ |  $$ | $$$$$$$ |\\$$$$$$\\  $$$$$$$$ |
     $$ |  $$ |$$  __$$ | $$ |$$\\ $$  __$$ |$$ |  $$ |$$  __$$ | \\____$$\\ $$   ____|
     $$$$$$$  |\\$$$$$$$ | \\$$$$  |\\$$$$$$$ |$$$$$$$  |\\$$$$$$$ |$$$$$$$  |\\$$$$$$$\\ 
-    \\_______/  \\_______|  \\____/  \\_______|\\_______/  \\_______|\\_______/  \\_______|
-                                                                                   
-                                                                                   
-                                                                                   
+    \\_______/  \\_______|  \\____/  \\_______|\\_______/  \\_______|\\_______/  \\_______|                                                           
     `);
     // grab tables (and pretty, joined View-able versions of tables) and store them locally
     // these local tables will be used when a user requests to view a table, instead of querying the database
@@ -59,7 +59,6 @@ connection.connect(async function (err) {
     await updateLocalDepartment();
     await updateLocalRole();
     await updateLocalEmployee();
-
     // call promptUser() to get the user's input, and call the appropriate function
     promptUser();
 });
@@ -157,6 +156,10 @@ function updateLocalEmployee() {
 
 }
 
+/////////////////////////////////////////////////////////////
+// Prompt User for Input
+
+/////////////////////////////////////////////////////////////
 function promptUser() { // prompts the user for an action: add, delete, update, view, exit 
     inquirer.prompt({
         name: "action",
@@ -275,8 +278,14 @@ function addRole() {
         },
         {
             name: "salary",
-            type: "number",
+            type: "input",
             message: "Input new role salary, or 0 to cancel:",
+            validate: async function (input) {
+                if (isNaN(input)){//typeof input !== "number") {
+                    return "Please enter a number";
+                }
+                return true;
+            },
         },
         {
             name: "department",
@@ -379,19 +388,183 @@ function addEmployee() {
 /////////////////////////////////////////////////////////////
 // DELETE DEPARTMENT, ROLE, OR EMPLOYEE
 /////////////////////////////////////////////////////////////
-function deleteDepartment() {
-    console.log("\nFunctionality Coming Soon!\n");
-    promptUser();
+async function deleteDepartment() {
+    // prompt for department name to delete
+    const departmentNameResponse = await inquirer.prompt([
+        {
+            name: "name",
+            type: "list",
+            message: "Which department would you like to delete?",
+            choices: function () {
+                let choiceArray = [];
+                for (let i = 0; i < department.length; i++) {
+                    choiceArray.push(department[i].name);
+                }
+                return choiceArray;
+            }
+        }
+    ]);
+    // check if department has any roles assigned
+    const selectedDepartment = department.find(item => item.name === departmentNameResponse.name);
+    connection.query( // find any roles that belong to the selected department
+        `
+        SELECT department.name AS department, role.title as role
+        FROM role
+        INNER JOIN department
+        ON department.id = role.department_id AND ?;
+        `,
+        [{ department_id: selectedDepartment.id }],
+        async function (err, res) {
+            if (err) throw err;
+            if (res.length > 0) { // if the department has roles assigned to it, inform the user and exit delete function
+                // if department has roles, prompt user with info, and inform them to delete roles first
+                console.table(res);
+                console.log(`!!!! Please delete these roles before deleting ${selectedDepartment.name} !!!!`);
+                promptUser(); // prompt user for next action
+            } else { // department has 0 roles assigned to it, and is ok to delete
+                // if department has no roles, delete department
+                const confirmation = await inquirer.prompt([
+                    {
+                        name: "confirm",
+                        type: "confirm",
+                        message: `${selectedDepartment.name} has 0 roles assigned to it. Would you like to continue?`
+                    }
+                ]);
+                if (confirmation.confirm) {
+                    console.log(`Deleting ${selectedDepartment.name} department`);
+                    connection.query(
+                        `
+                    DELETE 
+                    FROM department
+                    WHERE ?
+                    `,
+                        [{ id: selectedDepartment.id }],
+                        async function (err, res) {
+                            if (err) throw err;
+                            console.log(`${res.affectedRows} rows affected`);
+                            await updateLocalDepartment();
+                        }
+                    );
+                } else {
+                    console.log("Exiting Delete Department");
+                    promptUser();// prompt user for next action
+                }// confirmation
+            }// # of department roles check
+        }
+    );
 }
 
-function deleteRole() {
-    console.log("\nFunctionality Coming Soon!\n");
-    promptUser();
+async function deleteRole() {
+    //prompt for role to delete
+    const roleNameResponse = await inquirer.prompt([
+        {
+            name: "name",
+            type: "list",
+            message: "Which role would you like to delete?",
+            choices: function () {
+                let choiceArray = [];
+                for (let i = 0; i < role.length; i++) {
+                    choiceArray.push(role[i].title);
+                }
+                return choiceArray;
+            }
+        }
+    ]);
+
+    let selectedRole = role.find(item => item.title === roleNameResponse.name);
+    connection.query(// finds employees with the role that will be deleted
+        `
+        SELECT CONCAT(employee.first_name, " ", employee.last_name) AS employee, role.title AS role
+        FROM role
+        INNER JOIN employee
+        ON employee.role_id = role.id AND role.id = ? ;
+        `,
+        [selectedRole.id], // select only the table entries with the role.id matching the user-selected role title
+        async function (err, res) {
+            if (err) throw err;
+            let confirmationMessage = ``;
+            if (res.length == 0) {// zero employees effected by deleting this role
+                confirmationMessage = `Deleting this role will affect 0 employees.\nDo you want to continue deleting ${roleNameResponse.name}?`;
+            } else {
+                console.table(res); // log query results to user terminal - empoyees who will be affected by deleting this role
+                confirmationMessage = `The roles of the employees above will be set to null.\nDo you want to continue deleting the ${roleNameResponse.name}?`;
+            }
+            const confirmation = await inquirer.prompt([
+                {
+                    name: "confirm",
+                    type: "confirm",
+                    message: confirmationMessage
+                }
+            ])
+            if (confirmation.confirm) { // if user confirms deletion
+                console.log(`Deleting ${roleNameResponse.name}`);
+                connection.query(
+                    `
+                    DELETE
+                    FROM role
+                    WHERE ?
+                    `,
+                    [{ id: selectedRole.id }], // delete the role with this id
+                    async function (err, res) {
+                        if (err) throw err;
+                        console.log(`${res.affectedRows} rows affected`);
+                        await updateLocalRole(); // update local tables
+                        await updateLocalEmployee(); // update local tables
+                    }
+                )
+            } else {
+                console.log("Canceling Role Delete");
+                promptUser();
+            }
+        }
+    )
 }
 
-function deleteEmployee() {
-    console.log("\nFunctionality Coming Soon!\n");
-    promptUser();
+async function deleteEmployee() {
+    //prompt to employee to delete
+    const employeeNameResponse = await inquirer.prompt([
+        {
+            name: "name",
+            type: "list",
+            message: "Which employee would you like to delete?",
+            choices: function () {
+                let choiceArray = [];
+                for (let i = 0; i < employee.length; i++) {
+                    choiceArray.push(`${employee[i].first_name} ${employee[i].last_name}`);
+                }
+                return choiceArray;
+            }
+        }
+    ]);
+    //prompt for confirmation
+    const confirmation = await inquirer.prompt([
+        {
+            name: "confirm",
+            type: "confirm",
+            message: `Are you sure you want to delete ${employeeNameResponse.name}?`
+        }
+    ]);
+    if (confirmation.confirm === true) {
+        let employeeName = employeeNameResponse.name.split(" "); // split into first and last names
+        let selectedEmployee = employee.find(item => item.first_name === employeeName[0] && item.last_name === employeeName[1]);
+        connection.query( // query deletes selected employee by id
+            `
+            DELETE 
+            FROM employee
+            WHERE ?;
+            `,
+            [{ id: selectedEmployee.id }],
+            async function (err, res) { // async to await local table update
+                if (err) throw err;
+                console.log(`${res.affectedRows} rows affected`);
+                await updateLocalEmployee(); // update local tables
+                promptUser(); // prompt user for next input
+            }
+        )
+    } else {
+        console.log("Canceling Employee Delete");
+        promptUser();
+    }
 }
 
 /////////////////////////////////////////////////////////////
@@ -441,7 +614,7 @@ function updateEmployeeRole() {
                     if (err) throw err;
                     console.log(`${response.employee} assigned role: ${response.role}\n`);
                     await updateLocalEmployee(); // update local employee tables
-                    viewEmployees();
+                    promptUser();
                 });
         }
     });
