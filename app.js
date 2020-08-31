@@ -64,6 +64,10 @@ connection.connect(async function (err) {
     promptUser();
 });
 
+/////////////////////////////////////////////////////////////
+// Update Local Stored Datatables
+/////////////////////////////////////////////////////////////
+
 function updateLocalDepartment() {
     // this query returns an array of two items: 1. array of department objects, 2. array of department objects with column heading "department" instead of "name"
     let queryString =
@@ -153,7 +157,7 @@ function updateLocalEmployee() {
 
 }
 
-function promptUser() {
+function promptUser() { // prompts the user for an action: add, delete, update, view, exit 
     inquirer.prompt({
         name: "action",
         type: "list",
@@ -163,18 +167,25 @@ function promptUser() {
             "Add Department",
             "Add Role",
             "Add Employee",
+            new inquirer.Separator("---Delete--"),
+            "Delete Department",
+            "Delete Role",
+            "Delete Employee",
+            new inquirer.Separator("---Update--"),
+            "Update Employee Role",
+            "Update Employee Manager",
             new inquirer.Separator("----View---"),
             "View Departments",
             "View Roles",
             "View Employees",
             "View Employees by manager",
-            new inquirer.Separator("---Update--"),
-            "Update Employee Role",
-            "Update Employee Manager",
+            "View Department Salary Totals",
+            new inquirer.Separator("----EXIT---"),
             "Exit"
         ]
     }).then(function (response) {
-        switch (response.action) {
+        switch (response.action) {// determine user action, call appropriate function
+            //ADD
             case "Add Department":
                 addDepartment();
                 break;
@@ -184,6 +195,27 @@ function promptUser() {
             case "Add Employee":
                 addEmployee();
                 break;
+
+            //DELETE
+            case "Delete Department":
+                deleteDepartment();
+                break;
+            case "Delete Role":
+                deleteRole();
+                break;
+            case "Delete Employee":
+                deleteEmployee();
+                break;
+
+            //UPDATE
+            case "Update Employee Role":
+                updateEmployeeRole();
+                break;
+            case "Update Employee Manager":
+                updateEmployeeManager();
+                break;
+
+            //VIEW
             case "View Departments":
                 viewDepartments();
                 break;
@@ -196,12 +228,11 @@ function promptUser() {
             case "View Employees by manager":
                 viewEmployeesByManager();
                 break;
-            case "Update Employee Role":
-                updateEmployeeRole();
+            case "View Department Salary Totals":
+                viewDepartmentsSalaryTotal();
                 break;
-            case "Update Employee Manager":
-                updateEmployeeManager();
-                break;
+
+            //EXIT
             case "Exit":
                 connection.end();
                 console.log("Goodbye!");
@@ -210,6 +241,9 @@ function promptUser() {
     });
 }
 
+/////////////////////////////////////////////////////////////
+// ADD DEPARTMENT, ROLE, OR EMPLOYEE
+/////////////////////////////////////////////////////////////
 function addDepartment() {// asks user for new department name, then adds department to database, and shows departments
     inquirer.prompt({
         name: "department",
@@ -342,38 +376,27 @@ function addEmployee() {
     });
 }
 
-function viewDepartments() {
-    console.table(departmentView);
+/////////////////////////////////////////////////////////////
+// DELETE DEPARTMENT, ROLE, OR EMPLOYEE
+/////////////////////////////////////////////////////////////
+function deleteDepartment() {
+    console.log("\nFunctionality Coming Soon!\n");
     promptUser();
 }
 
-function viewRoles() {
-    console.table(roleView);
+function deleteRole() {
+    console.log("\nFunctionality Coming Soon!\n");
     promptUser();
 }
 
-function viewEmployees() {
-    console.table(employeeView);
+function deleteEmployee() {
+    console.log("\nFunctionality Coming Soon!\n");
     promptUser();
 }
 
-function viewEmployeesByManager() {
-    connection.query(
-        `
-        SELECT CONCAT(employee.first_name, " ", employee.last_name) AS employee, CONCAT(m.first_name, " ", m.last_name) AS "reports to"
-        FROM employee
-        LEFT OUTER JOIN employee m #This uses a table alias 'm' to refer to the employee table. Tables cannot appear twice in a query under the same name.
-        ON employee.manager_id = m.id
-        ORDER BY CONCAT(m.first_Name, " ", m.last_Name)  
-        `,
-        function(err, res){
-            if (err) throw err;
-            console.table(res);
-            promptUser();
-        }
-    )
-}
-
+/////////////////////////////////////////////////////////////
+// UPDATE EMPLOYEE ROLE OR MANAGER
+/////////////////////////////////////////////////////////////
 function updateEmployeeRole() {
     inquirer.prompt([
         {
@@ -476,3 +499,58 @@ async function updateEmployeeManager() {
             });
     }
 }
+
+/////////////////////////////////////////////////////////////
+// VIEW DEPARTMENT, ROLE, EMPLOYEE, EMPLOYEE BY MANAGER, OR DEPARTMENT SALARY TOTALS
+/////////////////////////////////////////////////////////////
+function viewDepartments() {
+    console.table(departmentView);
+    promptUser();
+}
+
+function viewRoles() {
+    console.table(roleView);
+    promptUser();
+}
+
+function viewEmployees() {
+    console.table(employeeView);
+    promptUser();
+}
+
+function viewEmployeesByManager() {
+    connection.query(
+        `
+        SELECT CONCAT(employee.first_name, " ", employee.last_name) AS employee, CONCAT(m.first_name, " ", m.last_name) AS "reports to"
+        FROM employee
+        LEFT OUTER JOIN employee m #This uses a table alias 'm' to refer to the employee table. Tables cannot appear twice in a query under the same name.
+        ON employee.manager_id = m.id
+        ORDER BY CONCAT(m.first_Name, " ", m.last_Name)  
+        `,
+        function (err, res) {
+            if (err) throw err;
+            console.table(res);
+            promptUser();
+        }
+    )
+}
+
+function viewDepartmentsSalaryTotal() {
+    connection.query(// this query returns a table of department names and total salaries for those departments
+        `
+        SELECT department.name AS department, SUM(role.salary) AS "salary total"
+        FROM employee
+        LEFT OUTER JOIN role
+        ON employee.role_id = role.id
+        LEFT OUTER JOIN department
+        ON role.department_id = department.id
+        GROUP BY department.name;
+        `, // each employee, join to their role, join their role to their department, group by department names, sum the role salaries
+        function (err, res) {
+            if (err) throw err;
+            console.table(res); // display results
+            promptUser();
+        }
+    );
+}
+
