@@ -8,7 +8,6 @@ const add = require("./lib/add.js");
 const del = require("./lib/delete");
 const update = require("./lib/update");
 const view = require("./lib/view");
-const { createPromptModule } = require("inquirer");
 
 //local versions of DB tables
 let department = [];
@@ -164,34 +163,35 @@ function updateLocalEmployee() {
 /////////////////////////////////////////////////////////////
 // Prompt User for Input
 /////////////////////////////////////////////////////////////
-function promptUser() { // prompts the user for an action: add, delete, update, view, exit 
-    console.log(); //new line
-    inquirer.prompt({
-        name: "action",
-        type: "list",
-        message: "Please select an action:",
-        choices: [
-            new inquirer.Separator("----Add----"),
-            "Add Department",
-            "Add Role",
-            "Add Employee",
-            new inquirer.Separator("---Delete--"),
-            "Delete Department",
-            "Delete Role",
-            "Delete Employee",
-            new inquirer.Separator("---Update--"),
-            "Update Employee Role",
-            "Update Employee Manager",
-            new inquirer.Separator("----View---"),
-            "View Departments",
-            "View Roles",
-            "View Employees",
-            "View Employees by manager",
-            "View Department Salary Totals",
-            new inquirer.Separator("----EXIT---"),
-            "Exit"
-        ]
-    }).then(async function (response) {
+async function promptUser() { // prompts the user for an action: add, delete, update, view, exit 
+    while (true) { // loop until user exits 
+        console.log(); //new line
+        const response = await inquirer.prompt({
+            name: "action",
+            type: "list",
+            message: "Please select an action:",
+            choices: [
+                new inquirer.Separator("----Add----"),
+                "Add Department",
+                "Add Role",
+                "Add Employee",
+                new inquirer.Separator("---Delete--"),
+                "Delete Department",
+                "Delete Role",
+                "Delete Employee",
+                new inquirer.Separator("---Update--"),
+                "Update Employee Role",
+                "Update Employee Manager",
+                new inquirer.Separator("----View---"),
+                "View Departments",
+                "View Roles",
+                "View Employees",
+                "View Employees by manager",
+                "View Department Salary Totals",
+                new inquirer.Separator("----EXIT---"),
+                "Exit"
+            ]
+        });
         let result; // instantiate result, true result means function completed
         switch (response.action) {// determine user action, call appropriate function
             //ADD
@@ -199,22 +199,18 @@ function promptUser() { // prompts the user for an action: add, delete, update, 
                 result = await add.addDepartment(connection);
                 if (result) {
                     await updateLocalDepartment();
-                    //viewDepartments();
                 }
                 break;
             case "Add Role":
                 result = await add.addRole(connection, department);
                 if (result) {
                     await updateLocalRole();
-                    await updateLocalEmployee();
-                    //viewRoles();
                 }
                 break;
             case "Add Employee":
                 result = await add.addEmployee(connection, role, employee);
                 if (result) {
                     await updateLocalEmployee();
-                    //viewEmployees();
                 }
                 break;
 
@@ -223,21 +219,19 @@ function promptUser() { // prompts the user for an action: add, delete, update, 
                 result = await del.deleteDepartment(connection, department);
                 if (result) { // if department deleted
                     await updateLocalDepartment();
-                    //viewDepartments();
                 }
                 break;
             case "Delete Role":
                 result = await del.deleteRole(connection, role);
                 if (result) {
                     await updateLocalRole();
-                    //viewRoles();
+                    await updateLocalEmployee();
                 }
                 break;
             case "Delete Employee":
                 result = await del.deleteEmployee(connection, employee);
                 if (result) {
                     await updateLocalEmployee();
-                    //viewEmployees();
                 }
                 break;
 
@@ -246,7 +240,6 @@ function promptUser() { // prompts the user for an action: add, delete, update, 
                 result = await update.updateEmployeeRole(connection, role, employee);
                 if (result) {
                     await updateLocalEmployee();
-                    //viewEmployees();
                 }
                 break;
             case "Update Employee Manager":
@@ -279,6 +272,6 @@ function promptUser() { // prompts the user for an action: add, delete, update, 
                 console.log("Goodbye!");
                 return;
         }
-        promptUser();// bad, but only in use for this version
-    });
+    }
 }
+
