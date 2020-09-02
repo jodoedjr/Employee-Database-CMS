@@ -165,6 +165,7 @@ function updateLocalEmployee() {
 // Prompt User for Input
 /////////////////////////////////////////////////////////////
 function promptUser() { // prompts the user for an action: add, delete, update, view, exit 
+    console.log(); //new line
     inquirer.prompt({
         name: "action",
         type: "list",
@@ -195,19 +196,26 @@ function promptUser() { // prompts the user for an action: add, delete, update, 
         switch (response.action) {// determine user action, call appropriate function
             //ADD
             case "Add Department":
-                await add.addDepartment(connection);
-                await updateLocalDepartment();
-                viewDepartments();
+                result = await add.addDepartment(connection);
+                if (result) {
+                    await updateLocalDepartment();
+                    //viewDepartments();
+                }
                 break;
             case "Add Role":
-                await add.addRole(connection, department);
-                await updateLocalRole();
-                viewRoles();
+                result = await add.addRole(connection, department);
+                if (result) {
+                    await updateLocalRole();
+                    await updateLocalEmployee();
+                    //viewRoles();
+                }
                 break;
             case "Add Employee":
-                await add.addEmployee(connection, role, employee);
-                await updateLocalEmployee();
-                viewEmployees();
+                result = await add.addEmployee(connection, role, employee);
+                if (result) {
+                    await updateLocalEmployee();
+                    //viewEmployees();
+                }
                 break;
 
             //DELETE
@@ -215,47 +223,54 @@ function promptUser() { // prompts the user for an action: add, delete, update, 
                 result = await del.deleteDepartment(connection, department);
                 if (result) { // if department deleted
                     await updateLocalDepartment();
-                    viewDepartments();
+                    //viewDepartments();
                 }
                 break;
             case "Delete Role":
                 result = await del.deleteRole(connection, role);
                 if (result) {
                     await updateLocalRole();
-                    viewRoles();
-                }                
+                    //viewRoles();
+                }
                 break;
             case "Delete Employee":
                 result = await del.deleteEmployee(connection, employee);
                 if (result) {
                     await updateLocalEmployee();
-                    viewEmployees();
+                    //viewEmployees();
                 }
                 break;
 
             //UPDATE
             case "Update Employee Role":
-                updateEmployeeRole();
+                result = await update.updateEmployeeRole(connection, role, employee);
+                if (result) {
+                    await updateLocalEmployee();
+                    //viewEmployees();
+                }
                 break;
             case "Update Employee Manager":
-                updateEmployeeManager();
+                result = await update.updateEmployeeManager(connection, employee);
+                if (result) {
+                    await updateLocalEmployee();
+                }
                 break;
 
             //VIEW
             case "View Departments":
-                viewDepartments();
+                view.viewDepartments(departmentView);
                 break;
             case "View Roles":
-                viewRoles();
+                view.viewRoles(roleView);
                 break;
             case "View Employees":
-                viewEmployees();
+                view.viewEmployees(employeeView);
                 break;
             case "View Employees by manager":
-                viewEmployeesByManager();
+                result = await view.viewEmployeesByManager(connection);
                 break;
             case "View Department Salary Totals":
-                viewDepartmentsSalaryTotal();
+                result = await view.viewDepartmentsSalaryTotal(connection);
                 break;
 
             //EXIT
@@ -267,168 +282,3 @@ function promptUser() { // prompts the user for an action: add, delete, update, 
         promptUser();// bad, but only in use for this version
     });
 }
-
-
-
-
-
-/////////////////////////////////////////////////////////////
-// UPDATE EMPLOYEE ROLE OR MANAGER
-/////////////////////////////////////////////////////////////
-function updateEmployeeRole() {
-    inquirer.prompt([
-        {
-            name: "employee",
-            type: "list",
-            message: "Who's role would you like to change?",
-            choices: function () {
-                let choiceArray = [];
-                for (let i = 0; i < employee.length; i++) {
-                    choiceArray.push(`${employee[i].first_name} ${employee[i].last_name}`);
-                }
-                return choiceArray;
-            }
-        },
-        {
-            name: "role",
-            type: "list",
-            message: "What role would you like to assign?",
-            choices: function () {
-                let choiceArray = [];
-                for (let i = 0; i < role.length; i++) {
-                    choiceArray.push(`${role[i].title}`);
-                }
-                choiceArray.push("Cancel"); // give user option to cancel
-                return choiceArray;
-            }
-        }
-    ]).then(function (response) {
-        if (response.role === "Cancel") { // cancel process and re-prompt main menu if user decides to cancel
-            console.log("Returning to Main Menu");
-            promptUser();
-        } else {
-            let employeeName = response.employee.split(" ");
-            let selectedEmployee = employee.find(item => (item.first_name === employeeName[0]) && (item.last_name === employeeName[1]));
-            let selectedRole = role.find(item => item.title === response.role)// find the role selected by the user (this is a role object, with ID and title)
-            connection.query(
-                `UPDATE employee
-                        SET ?
-                        WHERE ?`,
-                [{ role_id: selectedRole.id }, { id: selectedEmployee.id }], // update employee role id in db
-                async function (err, res) {
-                    if (err) throw err;
-                    console.log(`${response.employee} assigned role: ${response.role}\n`);
-                    await updateLocalEmployee(); // update local employee tables
-                    promptUser();
-                });
-        }
-    });
-}
-
-async function updateEmployeeManager() {
-    let employeeList = [];
-    for (let i = 0; i < employee.length; i++) {
-        employeeList.push(`${employee[i].first_name} ${employee[i].last_name}`);
-    }
-    const employeePrompt = await inquirer.prompt([
-        {
-            name: "name",
-            type: "list",
-            message: "Who's manager would you like to change?",
-            choices: function () {
-                return [...employeeList, "Cancel"];
-            }
-        }]);
-    if (employeePrompt.name === "Cancel") {
-        console.log("Returning to Main Menu");
-        promptUser();
-        return;
-    } else {
-        employeeList.splice(employeeList.indexOf(employeePrompt.name), 1); // removes the employee name from the employee list
-    }
-    const managerPrompt = await inquirer.prompt([
-        {
-            name: "name",
-            type: "list",
-            message: "What manager would you like to assign?",
-            choices: function () {
-                return [...employeeList, "Cancel"];
-            }
-        }]);
-    if (managerPrompt.name === "Cancel") { // cancel process and re-prompt main menu if user decides to cancel
-        console.log("Returning to Main Menu");
-        promptUser();
-        return;
-    } else {
-        let employeeName = employeePrompt.name.split(" ");
-        let selectedEmployee = employee.find(item => (item.first_name === employeeName[0]) && (item.last_name === employeeName[1]));
-        let managerName = managerPrompt.name.split(" ");
-        let selectedManager = employee.find(item => (item.first_name === managerName[0]) && (item.last_name === managerName[1]));// find the role selected by the user (this is a role object, with ID and title)
-        connection.query(
-            `UPDATE employee
-                        SET ?
-                        WHERE ?`,
-            [{ manager_id: selectedManager.id }, { id: selectedEmployee.id }], // update employee manger id in db
-            async function (err, res) {
-                if (err) throw err;
-                console.log(`${employeeName} assigned manager: ${managerName}\n`);
-                await updateLocalEmployee(); // update local employee tables
-                viewEmployees();
-            });
-    }
-}
-
-/////////////////////////////////////////////////////////////
-// VIEW DEPARTMENT, ROLE, EMPLOYEE, EMPLOYEE BY MANAGER, OR DEPARTMENT SALARY TOTALS
-/////////////////////////////////////////////////////////////
-function viewDepartments() {
-    console.table(departmentView);
-    //promptUser();
-}
-
-function viewRoles() {
-    console.table(roleView);
-    //promptUser();
-}
-
-function viewEmployees() {
-    console.table(employeeView);
-    //promptUser();
-}
-
-function viewEmployeesByManager() {
-    connection.query(
-        `
-        SELECT CONCAT(employee.first_name, " ", employee.last_name) AS employee, CONCAT(m.first_name, " ", m.last_name) AS "reports to"
-        FROM employee
-        LEFT OUTER JOIN employee m #This uses a table alias 'm' to refer to the employee table. Tables cannot appear twice in a query under the same name.
-        ON employee.manager_id = m.id
-        ORDER BY CONCAT(m.first_Name, " ", m.last_Name)  
-        `,
-        function (err, res) {
-            if (err) throw err;
-            console.table(res);
-            promptUser();
-        }
-    )
-}
-
-function viewDepartmentsSalaryTotal() {
-    connection.query(// this query returns a table of department names and total salaries for those departments
-        `
-        SELECT department.name AS department, SUM(role.salary) AS "salary total"
-        FROM employee
-        LEFT OUTER JOIN role
-        ON employee.role_id = role.id
-        LEFT OUTER JOIN department
-        ON role.department_id = department.id
-        GROUP BY department.name;
-        `, // each employee, join to their role, join their role to their department, group by department names, sum the role salaries
-        function (err, res) {
-            if (err) throw err;
-            console.table(res); // display results
-            promptUser();
-        }
-    );
-}
-
